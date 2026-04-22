@@ -293,9 +293,12 @@ let sideIndex    = 0;
 // ===== 起動 =====
 document.addEventListener("DOMContentLoaded", async () => {
   await loadAllFromCloud();
-  // クラウドからAPIキーを取得してキャッシュ
   await loadApiKeyFromCloud();
   updateApiKeyUI();
+  // 副菜が足りなければ独立して生成
+  if (sideRecipes.length < SIDE_MIN && getGeminiKey()) {
+    generateSideRecipes();
+  }
   loadFridgeUI();
   await maybeGenerateRecipes();
   next();
@@ -657,10 +660,15 @@ JSON配列のみ：[{"name":"副菜名","minutes":10,"ingredients":"材料 量",
   setStatus("副菜を補充中…", "loading");
   try {
     const json = await callGemini(prompt);
-    sideRecipes = sideRecipes.concat(JSON.parse(json));
+    const parsed = JSON.parse(json);
+    sideRecipes = sideRecipes.concat(parsed);
     await saveRecipesCloud();
-    setStatus("✓ 副菜も準備完了（" + sideRecipes.length + "件）");
-  } catch(e) { console.error("副菜生成失敗:", e); }
+    setStatus("✓ 副菜準備完了（" + sideRecipes.length + "件）");
+    nextSide();
+  } catch(e) {
+    setStatus("副菜生成失敗: " + e.message, "error");
+    console.error("副菜生成失敗:", e);
+  }
 }
 
 // ===== 主菜2択 =====
