@@ -168,6 +168,14 @@
   .clear-btn:hover { border-color: var(--accent-low); color: var(--accent-low); }
 
 
+  .gas-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--card-radius); padding: 16px; margin-bottom: 20px; }
+  .gas-box label { font-size: 11px; color: var(--muted); letter-spacing: 0.08em; display: block; margin-bottom: 8px; }
+  .gas-row { display: flex; gap: 8px; }
+  .gas-input { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 12px; background: var(--bg); color: var(--dark); }
+  .gas-save { border: none; background: var(--dark); color: #fff; border-radius: 8px; padding: 9px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .sync-status { font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .sync-status.ok  { color: var(--accent-a); }
+  .sync-status.err { color: var(--accent-low); }
 </style>
 </head>
 <body>
@@ -242,12 +250,22 @@
       </div>
     </div>
 
+    <!-- APIキー設定（一番下） -->
+    <div class="gas-box" id="apiKeyBox" style="margin-top:32px;">
+      <label>🔑 Gemini APIキー（一度登録すれば家族で共有）</label>
+      <div class="gas-row">
+        <input type="password" class="gas-input" id="apiKeyInput" placeholder="AIza..." />
+        <button class="gas-save" onclick="saveApiKey()">保存</button>
+      </div>
+      <div class="sync-status" id="apiKeyStatus"></div>
+    </div>
+
   </div>
 </div>
 
 <script>
 // ===== 設定 =====
-const GEMINI_API_KEY = "AIzaSyDLeSye7nSjjW6m7MLb9-XqgBgsvBU9WM4";
+function getGeminiKey() { return localStorage.getItem("gemini_api_key") || ""; }
 const RECIPES_KEY    = "recipes_v3";
 const SIDE_KEY       = "side_recipes_v1";
 const HISTORY_KEY    = "history_v3";
@@ -259,7 +277,7 @@ const QUICK_ITEMS = [
   "卵","豆腐","鶏むね肉","豚こま","挽き肉","豚バラ","鮭","ツナ缶","鯖缶",
   "玉ねぎ","にんじん","じゃがいも","キャベツ","もやし","ほうれん草","小松菜",
   "トマト","大根","ねぎ","ごぼう","白菜","ピーマン","なす",
-  "しいたけ","しめじ","えのき","油揚げ","水菜"
+  "しいたけ","しめじ","えのき","油揚げ","豆苗","厚揚げ"
 ];
 const UNIQUE_QUICK = [...new Set(QUICK_ITEMS)];
 
@@ -275,6 +293,9 @@ let sideIndex    = 0;
 // ===== 起動 =====
 document.addEventListener("DOMContentLoaded", async () => {
   await loadAllFromCloud();
+  // クラウドからAPIキーを取得してキャッシュ
+  await loadApiKeyFromCloud();
+  updateApiKeyUI();
   loadFridgeUI();
   await maybeGenerateRecipes();
   next();
@@ -288,6 +309,48 @@ document.addEventListener("DOMContentLoaded", async () => {
 function getGasUrl() { return localStorage.getItem("gas_url") || "https://script.google.com/macros/s/AKfycbxawrmJkuGOV8hByIxEKV1fwzusSN5TcwmTUfmxfQxhp_MDtnd6V046lJ3U7FApfuzN/exec"; }
 
 function saveGasUrl() { /* UI removed */ }
+
+async function loadApiKeyFromCloud() {
+  try {
+    const key = await gasGet("getApiKey");
+    if (key) localStorage.setItem("gemini_api_key", key);
+  } catch(e) { /* ローカルキャッシュを使用 */ }
+}
+
+function updateApiKeyUI() {
+  const hasKey = !!getGeminiKey();
+  const input  = document.getElementById('apiKeyInput');
+  const status = document.getElementById('apiKeyStatus');
+  if (!input) return;
+  if (hasKey) {
+    input.placeholder = "設定済み ✓";
+    input.value = "";
+    status.textContent = "✓ APIキー設定済み（家族と共有中）";
+    status.className = "sync-status ok";
+  } else {
+    status.textContent = "APIキーを入力して保存してください";
+    status.className = "sync-status";
+  }
+}
+
+async function saveApiKey() {
+  const val = document.getElementById('apiKeyInput').value.trim();
+  if (!val) return;
+  const status = document.getElementById('apiKeyStatus');
+  status.textContent = "保存中…";
+  status.className = "sync-status";
+  localStorage.setItem("gemini_api_key", val);
+  document.getElementById('apiKeyInput').value = "";
+  try {
+    await gasPost("saveApiKey", val);
+    status.textContent = "✓ 保存しました（家族と共有済み）";
+    status.className = "sync-status ok";
+    document.getElementById('apiKeyInput').placeholder = "設定済み ✓";
+  } catch(e) {
+    status.textContent = "✓ ローカルに保存（クラウド同期失敗）";
+    status.className = "sync-status ok";
+  }
+}
 
 function setSyncStatus(msg, type) {
   // sync status UI removed
@@ -503,8 +566,10 @@ function clearAll() {
 
 // ===== Gemini =====
 async function callGemini(prompt) {
+  const key = getGeminiKey();
+  if (!key) throw new Error("APIキーを設定してください");
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${getGeminiKey()}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
