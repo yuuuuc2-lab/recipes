@@ -271,7 +271,7 @@ const SIDE_KEY       = "side_recipes_v1";
 const HISTORY_KEY    = "history_v3";
 const LAST_GEN_KEY   = "last_gen_date_v2";
 const EXCLUDE_DAYS   = 14;
-const SIDE_MIN       = 30;
+const SIDE_MIN       = 15;
 
 const QUICK_ITEMS = [
   "卵","豆腐","鶏むね肉","豚こま","挽き肉","豚バラ","鮭","ツナ缶","鯖缶",
@@ -578,7 +578,7 @@ async function callGemini(prompt) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.8, maxOutputTokens: 3000 }
+        generationConfig: { temperature: 0.8, maxOutputTokens: 6000 }
       })
     }
   );
@@ -655,8 +655,8 @@ async function maybeFillSide() {
 async function generateSideRecipes() {
   const existingNames = sideRecipes.map(r => r.name);
   const excludeStr = existingNames.length > 0 ? `\n除外：${existingNames.join("、")}` : "";
-  const prompt = `日本の家庭料理の副菜レシピを30件考えてください。15分以内のものを優先。${excludeStr}
-JSON配列のみ：[{"name":"副菜名","minutes":10,"ingredients":"材料 量","steps":"1.手順\\n2.手順"}]`;
+  const prompt = `日本の家庭料理の副菜レシピを15件考えてください。15分以内のものを優先。${excludeStr}
+JSON配列のみ返してください（説明不要、コードブロック不要）：[{"name":"副菜名","minutes":10,"ingredients":"材料 量","steps":"手順1。手順2。"}]`;
   setStatus("副菜を補充中…", "loading");
   try {
     const json = await callGemini(prompt);
